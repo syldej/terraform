@@ -724,12 +724,27 @@ func (p *blockBodyDiffPrinter) writeValueDiff(old, new cty.Value, indent int, pa
 			}
 			p.buf.WriteString("\n")
 
-			elemDiffs := ctySequenceDiff(old.AsValueSlice(), new.AsValueSlice())
-			for _, elemDiff := range elemDiffs {
-				p.buf.WriteString(strings.Repeat(" ", indent+2))
-				p.writeActionSymbol(elemDiff.Action)
-				p.writeValue(elemDiff.Value, elemDiff.Action, indent+4)
-				p.buf.WriteString(",\n")
+			if ty.IsListType() && ty.ElementType().IsObjectType() {
+				elemDiffs := ctyObjectSequenceDiff(old.AsValueSlice(), new.AsValueSlice(), 1)
+				for _, elemDiff := range elemDiffs {
+					p.buf.WriteString(strings.Repeat(" ", indent+2))
+					if elemDiff.Action == plans.NoOp {
+						p.writeValue(elemDiff.Before, elemDiff.Action, indent+4)
+					} else {
+						p.writeActionSymbol(elemDiff.Action)
+						p.writeValueDiff(elemDiff.Before, elemDiff.After, indent+4, path)
+					}
+
+					p.buf.WriteString(",\n")
+				}
+			} else {
+				elemDiffs := ctySequenceDiff(old.AsValueSlice(), new.AsValueSlice())
+				for _, elemDiff := range elemDiffs {
+					p.buf.WriteString(strings.Repeat(" ", indent+2))
+					p.writeActionSymbol(elemDiff.Action)
+					p.writeValue(elemDiff.Value, elemDiff.Action, indent+4)
+					p.buf.WriteString(",\n")
+				}
 			}
 
 			p.buf.WriteString(strings.Repeat(" ", indent))
@@ -882,7 +897,7 @@ func (p *blockBodyDiffPrinter) writeValueDiff(old, new cty.Value, indent int, pa
 			}
 
 			p.buf.WriteString(strings.Repeat(" ", indent))
-			p.buf.WriteString("}")
+			p.buf.WriteString("},")
 
 			if forcesNewResource {
 				p.buf.WriteString(p.color.Color(forcesNewResourceCaption))
